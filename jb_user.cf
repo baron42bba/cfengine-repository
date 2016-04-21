@@ -1,0 +1,83 @@
+#######################################################
+#  standard user setup file
+#######################################################
+#
+# Scenario:
+# Setup  user
+#
+# Original author: CFEngine
+# Adapted by: Jurica Borozan
+# Version: 1.1.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_user" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_user
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+      "users" slist => getindices("params");
+
+# create this only if user needs to be added on second pass
+      "t_inds[$(users)]" slist => getindices( "params[$(users)][useradd]"),
+         ifvarclass => canonify("no_user_$(users)");
+      "t_slist[$(users)]" slist => maplist( "--$(this) $(params[$(users)][useradd][$(this)])", "t_inds[$(users)]" ),
+         ifvarclass => canonify("no_user_$(users)");
+
+      "t_string[$(users)][useradd_args]" string => join( " ", "t_slist[$(users)]" ),
+         ifvarclass => canonify("no_user_$(users)");
+
+  classes:
+
+    linux::
+
+# check user existence
+      "no_user_$(users)"                      not => userexists("$(users)");
+
+# check useradd args existence
+      "have_useradd_args_for_$(users)" expression => isvariable("t_string[$(users)][useradd_args]");
+
+
+  commands:
+
+    linux::
+
+# add user, if needed
+      "$(paths.useradd) $(t_string[$(users)][useradd_args]) $(users)"
+        comment => "Adding user $(users)",
+        classes => if_ok("added_user_$(users)"),
+        ifvarclass => and( canonify("no_user_$(users)"),
+                           canonify("have_useradd_args_for_$(users)") );
+
+
+  files: 
+
+    linux::
+
+# set user password, if user added
+      "/etc/shadow"
+           comment => "Setting password for added user $(users)",
+         edit_line => set_user_field("$(users)", 2, "$(params[$(users)][password])"),
+        ifvarclass => canonify("added_user_$(users)");
+
+}
+

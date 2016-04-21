@@ -1,0 +1,68 @@
+#######################################################
+# Adds NGINX yum repository
+#######################################################
+#
+# Scenario:
+# Install and setup NGINX yum repository.
+#
+# Original author: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_yum_repos_nginx" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+## main agent bundle
+##
+bundle agent jb_yum_repos_nginx
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  classes:
+
+   centos|redhat::
+
+     "no_repository" not => fileexists("/etc/yum.repos.d/nginx.repo");
+
+
+  files:
+
+# if no repository create it
+
+    (centos|redhat).no_repository::
+
+      "/etc/yum.repos.d/nginx.repo"
+              comment => "Create nginx repository file for yum",
+               create => "true",
+        edit_defaults => empty,
+            edit_line => jb_yum_repos_nginx_restore_repository;
+
+}
+
+##
+##
+##
+bundle edit_line jb_yum_repos_nginx_restore_repository
+{
+ insert_lines:
+  "### CFEngine/jb_yum_repos_nginx created ###
+
+[nginx]
+name=nginx repo
+baseurl=http://nginx.org/packages/centos/$releasever/$basearch/
+gpgcheck=1
+enabled=1
+gpgkey=http://nginx.org/keys/nginx_signing.key"
+   insert_type => "preserve_block";
+
+}
+

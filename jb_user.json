@@ -1,0 +1,10 @@
+{
+  "jbuser" : {
+               "useradd" : {
+                             "comment" : "'JB default user'",
+                             "gid"     : "users",
+                             "shell"   : "/bin/bash",
+                           }
+               "password" : "$6$Rw1N4qXQ$RdZBOgQvH9QMg1QgraP4LZSG.2AZH73n/wVuljPcV/U1HhoGz1nHwMQR68QmJPto2cQKDEmAlY02sxmjeocJh/"
+             }
+}

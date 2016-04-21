@@ -1,0 +1,7 @@
+{
+  "created"     : "### CFEngine/jb_STIGs created ###",
+  "modified"    : "### CFEngine/jb_STIGs modified ###",
+  "added"       : "### CFEngine/jb_STIGs added ###",
+  "modified_re" : "### .* ###",
+  "added_re"    : "### .* ###"
+}

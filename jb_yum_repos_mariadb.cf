@@ -1,0 +1,109 @@
+#######################################################
+# Adds MariaDB yum repository
+#######################################################
+#
+# Scenario:
+# Install and setup MariaDB yum repository.
+#
+# Original author: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_yum_repos_mariadb" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+## main agent bundle
+##
+bundle agent jb_yum_repos_mariadb
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  classes:
+
+    centos|redhat::
+
+      "no_repository" not => fileexists("/etc/yum.repos.d/MariaDB.repo");
+
+
+  files:
+
+# if no repository create it
+
+    (centos|redhat).no_repository::
+
+      "/etc/yum.repos.d/MariaDB.repo"
+              comment => "Create MariaDB community repository file for yum",
+               create => "true",
+        edit_defaults => empty,
+            edit_line => jb_yum_repos_mariadb_restore_repository;
+
+}
+
+##
+##
+##
+bundle edit_line jb_yum_repos_mariadb_restore_repository
+{
+  vars:
+
+    "header" string => "### CFEngine/jb_yum_repos_mariadb created ###";
+
+
+  insert_lines:
+
+    centos_7::
+
+      "$(header)
+
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/centos7-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1"
+        insert_type => "preserve_block";
+
+    centos_6::
+
+      "$(header)
+
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/centos6-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1"
+        insert_type => "preserve_block";
+
+    redhat_7::
+
+      "$(header)
+
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/rhel7-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1"
+        insert_type => "preserve_block";
+
+    redhat_6::
+
+      "$(header)
+
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.1/rhel6-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1"
+        insert_type => "preserve_block";
+
+}
+
+

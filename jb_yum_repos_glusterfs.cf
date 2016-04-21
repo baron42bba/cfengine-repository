@@ -1,0 +1,53 @@
+#######################################################
+# Add GlusterFS repository
+#######################################################
+#
+#
+# Install GlusterFS repository
+#
+# Author: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_yum_repos_glusterfs" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_yum_repos_glusterfs
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    redhat|centos::
+
+      "glusterfs_repos_file" string => "/etc/yum.repos.d/glusterfs-epel.repo";
+      "glusterfs_repos_url"  string => "http://download.gluster.org/pub/gluster/glusterfs/LATEST/EPEL.repo/glusterfs-epel.repo";
+
+
+  classes:
+
+    redhat|centos::
+
+      "no_glusterfs_repos_file" not => fileexists("$(glusterfs_repos_file)");
+
+
+  commands:
+
+    no_glusterfs_repos_file.(centos|redhat)::
+
+      "$(paths.wget) $(glusterfs_repos_url) -O $(glusterfs_repos_file)"
+        comment => "Setup GlusterFS EPEL repository";
+
+}
+

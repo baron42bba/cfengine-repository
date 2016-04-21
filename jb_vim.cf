@@ -1,0 +1,120 @@
+#######################################################
+# VIM 
+#######################################################
+#
+# Scenario:
+# Install vim text editor and CFEngine highlighting syntax.
+# Alternatively use curl to fetch files - no need to install
+# wget then.
+#
+# Original author: Jurica Borozan
+# Files from: Neil H Watson 
+# Version: 1.1.0
+#
+
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_vim" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_vim
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+      "inds" slist => getindices("params[files]");
+
+
+  classes:
+
+    linux::
+
+      "have_wget" expression => fileexists("$(paths.wget)");
+
+#      "have_curl" expression => fileexists("$(paths.curl)");
+
+      "no_$(inds)" not => fileexists("$(params[files][$(inds)][file])");
+
+
+
+  packages:
+
+# if needed install it first
+
+    linux::
+
+      "$(params[packages])"
+               comment => "Install vim",
+        package_policy => "add",
+        package_method => generic,
+               classes => if_repaired("vim_installed");
+
+
+  files:
+
+    linux::
+
+      "/etc/vimrc"
+          comment => "Change vimrc default configuration file",
+        edit_line => restore_etc_vimrc;
+
+
+  commands:
+
+# if syntax highlighting files not present fetch them via wget/curl first
+
+    linux.have_wget::
+
+      "$(paths.wget) -nv -O $(params[files][$(inds)][file]) $(params[files][$(inds)][master_url])"
+           comment => "Fetching vim syntax highlighting file $(params[files][$(inds)][file])",
+           classes => if_ok("$(inds)_fetched"),
+        ifvarclass => "no_$(inds)";
+
+#    linux.have_curl::
+#
+#      "$(paths.curl) -s -L -o $(params[files][$(inds)][file]) $(params[files][$(inds)][master_url])"
+#           comment => "Fetching vim syntax highlighting files for CFEnfine",
+#           classes => if_ok("$(inds)_fetched"),
+#        ifvarclass => "!have_$(inds)";
+
+}
+
+##
+##
+##
+bundle edit_line restore_etc_vimrc
+{
+  delete_lines:
+
+    "au\s+BufRead.*cf3";
+
+  insert_lines:
+
+    "au BufRead,BufNewFile *.cf set ft=cf3"
+      location => jb_append;
+}
+
+##
+##
+##
+body location jb_append 
+{
+  before_after => "after";
+}
+

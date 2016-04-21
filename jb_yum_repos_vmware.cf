@@ -1,0 +1,91 @@
+#######################################################
+# Add vmware repository 
+#######################################################
+#
+#
+# Add vmware repository
+#
+# Author: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_vmware_tools" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_vmware_tools
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    redhat|centos::
+
+      "vmware_yum_repo" string => "/etc/yum.repos.d/vmware.repo";
+
+ classes:
+
+  redhat|centos::
+
+   "have_vmware_yum_repo" expression => fileexists("$(vmware_yum_repo)");
+
+
+ files:
+
+# if no repository create it
+
+  (redhat|centos).!have_vmware_yum_repo::
+
+  "$(vmware_yum_repo)"
+            comment => "Create vmware repository file for yum",
+             create => "true",
+      edit_defaults => empty,
+          edit_line => restore_vmware_yum_repository;
+}
+
+##
+##
+##
+bundle edit_line restore_vmware_yum_repository
+{
+  vars:
+
+    "header" string => "### CFEngine/jb_vmware_tools created ###";
+
+
+  insert_lines:
+
+    "$(header) 
+
+[vmware-tools]
+name=VMware Tools for Red Hat Enterprise Linux $releasever – $basearch
+baseurl=http://packages.vmware.com/tools/esx/latest/rhel6/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-RSA-KEY.pub"
+      insert_type => "preserve_block",
+       ifvarclass => "redhat_6|centos_6";
+
+    "$(header) 
+
+[vmware-tools]
+name=VMware Tools
+baseurl=http://packages.vmware.com/packages/rhel7/x86_64/
+enabled=1
+gpgcheck=1
+gpgkey=http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-RSA-KEY.pub"
+      insert_type => "preserve_block",
+       ifvarclass => "redhat_7|centos_7";
+
+}
+

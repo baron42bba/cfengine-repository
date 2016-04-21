@@ -1,0 +1,69 @@
+#######################################################
+# Add EPEL repository
+#######################################################
+#
+#
+# Install EPEL repository
+#
+# Author: Jurica Borozan
+# Version: 1.0.1
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_yum_repos_epel" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_yum_repos_epel
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  classes:
+
+    redhat|centos::
+
+      "no_epel_repos" not => fileexists("/etc/yum.repos.d/epel.repo");
+
+
+  commands:
+
+    no_epel_repos.(centos_5|redhat_5).32_bit::
+
+      "$(paths.rpm) -Uvh http://download.fedora.redhat.com/pub/epel/5/i386/epel-release-5-3.noarch.rpm"
+        comment => "Setup EPEL repository";
+
+    no_epel_repos.(centos_5|redhat_5).64_bit::
+
+      "$(paths.rpm) -Uvh http://download.fedora.redhat.com/pub/epel/5/x86_64/epel-release-5-3.noarch.rpm"
+        comment => "Setup EPEL repository";
+
+    no_epel_repos.(centos_6|redhat_6).32_bit::
+
+      "$(paths.rpm) -Uvh http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm"
+        comment => "Setup EPEL repository";
+
+    no_epel_repos.(centos_6|redhat_6).64_bit::
+
+      "$(paths.rpm) -Uvh http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm"
+        comment => "Setup EPEL repository";
+
+    no_epel_repos.(centos_7|redhat_7).32_bit::
+
+      "$(paths.rpm) -Uvh https://dl.fedoraproject.org/pub/epel/7/i386/e/epel-release-7-2.noarch.rpm"
+        comment => "Setup EPEL repository";
+
+    no_epel_repos.(centos_7|redhat_7).64_bit::
+
+      "$(paths.rpm) -Uvh https://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-2.noarch.rpm"
+        comment => "Setup EPEL repository";
+}
+

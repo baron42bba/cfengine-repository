@@ -1,0 +1,24 @@
+{
+   "packages" : [ 
+                  "vim-minimal", 
+                  "vim-common", 
+                  "vim-enhanced" 
+                ],
+
+   "files" : {
+               "ftplugin_cf3" : { 
+                                  "master_url" : "https://raw.github.com/neilhwatson/vim_cf3/master/ftplugin/cf3.vim",
+                                  "file"       : "/usr/share/vim/vimfiles/ftplugin/cf3.vim"
+                                },
+      
+               "doc_cf3_txt" : { 
+                                  "master_url" : "https://raw.github.com/neilhwatson/vim_cf3/master/doc/cf3.txt",
+                                  "file"       : "/usr/share/vim/vimfiles/doc/cf3.txt"
+                               }
+      
+               "syntax_cf3_vim" : { 
+                                    "master_url" : "https://raw.github.com/neilhwatson/vim_cf3/master/syntax/cf3.vim",
+                                    "file"       : "/usr/share/vim/vimfiles/syntax/cf3.vim"
+                                  }
+              }
+}

@@ -1,5 +1,5 @@
 #######################################################
-# VIM 
+# VIM for CFEngine
 #######################################################
 #
 # Scenario:
@@ -8,8 +8,7 @@
 # wget then.
 #
 # Original author: Jurica Borozan
-# Files from: Neil H Watson 
-# Version: 1.1.0
+# Version: 1.2.0
 #
 
 
@@ -19,14 +18,14 @@
 #body common control
 #{
 #  any::
-#    bundlesequence => { "jb_vim" };
+#    bundlesequence => { "jb_vim_for_cfengine" };
 #    inputs => { "$(sys.libdir)/stdlib.cf" };
 #}
 
 ##
 ##
 ##
-bundle agent jb_vim
+bundle agent jb_vim_for_cfengine
 {
   meta:
     "tags" slist => { "autorun" };
@@ -38,7 +37,7 @@ bundle agent jb_vim
       "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
       "params"        data => readdata(nth("params_files", 0), "auto");
 
-      "inds" slist => getindices("params[files]");
+      "vim_files"    slist => getindices("params[files]");
 
 
   classes:
@@ -49,16 +48,14 @@ bundle agent jb_vim
 
 #      "have_curl" expression => fileexists("$(paths.curl)");
 
-      "no_$(inds)" not => fileexists("$(params[files][$(inds)][file])");
-
+      "no_$(vim_files)" not => fileexists("$(vim_files)");
 
 
   packages:
 
-# if needed install it first
-
     linux::
 
+# if needed install it first
       "$(params[packages])"
                comment => "Install vim",
         package_policy => "add",
@@ -68,11 +65,25 @@ bundle agent jb_vim
 
   files:
 
-    linux::
+    redhat|centos::
 
       "/etc/vimrc"
           comment => "Change vimrc default configuration file",
-        edit_line => restore_etc_vimrc;
+        edit_line => jb_vim_for_cfengine_restore_etc_vimrc;
+
+    ubuntu|debian::
+
+      "/etc/vim/vimrc"
+          comment => "Change vimrc default configuration file",
+        edit_line => jb_vim_for_cfengine_restore_etc_vimrc;
+
+    linux::
+
+# create path and empty file first, if needed
+      "$(vim_files)"
+        comment => "Create directory paths and empty file $(vim_files)",
+          create => "true",
+        ifvarclass => canonify("no_$(vim_files)");
 
 
   commands:
@@ -81,24 +92,24 @@ bundle agent jb_vim
 
     linux.have_wget::
 
-      "$(paths.wget) -nv -O $(params[files][$(inds)][file]) $(params[files][$(inds)][master_url])"
-           comment => "Fetching vim syntax highlighting file $(params[files][$(inds)][file])",
-           classes => if_ok("$(inds)_fetched"),
-        ifvarclass => "no_$(inds)";
+      "$(paths.wget) -nv -O $(vim_files) $(params[files][$(vim_files)])"
+           comment => "Fetching vim syntax highlighting file $(vim_files)",
+           classes => if_ok("$(vim_files)_fetched"),
+        ifvarclass => canonify("no_$(vim_files)");
 
 #    linux.have_curl::
 #
-#      "$(paths.curl) -s -L -o $(params[files][$(inds)][file]) $(params[files][$(inds)][master_url])"
+#      "$(paths.curl) -s -L -o $(vim_files) $(params[files][$(vim_files)])"
 #           comment => "Fetching vim syntax highlighting files for CFEnfine",
-#           classes => if_ok("$(inds)_fetched"),
-#        ifvarclass => "!have_$(inds)";
+#           classes => if_ok("$(vim_files)_fetched"),
+#        ifvarclass => "!have_$(vim_files)";
 
 }
 
 ##
 ##
 ##
-bundle edit_line restore_etc_vimrc
+bundle edit_line jb_vim_for_cfenginer_restore_etc_vimrc
 {
   delete_lines:
 
@@ -107,13 +118,13 @@ bundle edit_line restore_etc_vimrc
   insert_lines:
 
     "au BufRead,BufNewFile *.cf set ft=cf3"
-      location => jb_append;
+      location => jb_vim_for_cfengine_append;
 }
 
 ##
 ##
 ##
-body location jb_append 
+body location jb_vim_for_cfengine_append 
 {
   before_after => "after";
 }

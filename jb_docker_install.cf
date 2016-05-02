@@ -1,0 +1,52 @@
+#######################################################
+# Docker installation
+#######################################################
+#
+# Scenario:
+# Install docker container software.
+#
+# Original author: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_docker_install" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+## main agent bundle
+##
+bundle agent jb_docker_install
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+      "packages" slist => {
+                            "docker",
+                          };
+
+
+# install it
+
+  packages:
+
+    linux::
+
+      "$(packages)"
+               comment => "Installing docker",
+        package_policy => "add",
+        package_method => generic,
+               classes => if_repaired("docker_installed");
+}
+
+

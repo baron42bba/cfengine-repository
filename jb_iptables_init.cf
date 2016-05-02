@@ -1,0 +1,193 @@
+#######################################################
+# Iptables
+#######################################################
+# Scenario:
+# Secure the system with iptable firewall
+# 
+# Original author: CFEngine
+# Adapted by: Jurica Borozan
+# Version: 1.1.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_iptables_init_def", "jb_iptables_init" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle common jb_iptables_init_def
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  classes:
+
+    linux::
+
+# check sshd restart method
+      "have_systemctl"        expression => fileexists("$(paths.systemctl)");
+      "have_init_d_iptables"  expression => fileexists("/etc/init.d/iptables");
+}
+
+##
+##
+##
+bundle agent jb_iptables_init
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    centos|redhat::
+
+      "iptables_file" string => "/etc/sysconfig/iptables";
+
+    ubuntu|debian::
+
+      "iptables_file" string => "/etc/iptables/rules.v4";
+
+# check location for shell commands
+      "cmd_dirs" slist => { "/usr/sbin", "/sbin" };
+      "cmds" slist => { "iptables-restore" };
+
+      "cmd[$(cmds)]" string => "$(cmd_dirs)/$(cmds)",
+        ifvarclass => fileexists("$(cmd_dirs)/$(cmds)");
+
+    linux::
+
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+
+  classes:
+
+    ubuntu|debian::
+
+      "have_iptables_restore" expression => isvariable("cmd[iptables-restore]");
+
+
+  files:
+
+    linux::
+
+      "$(iptables_file)"
+              comment => "Create iptables rule cache file $(iptables_file)",
+               create => "true",
+        edit_defaults => empty,
+            edit_line => jb_iptables_init_restore_iptables( @(params) ),
+              classes => if_repaired("restart_iptables");
+
+
+# check if it is running
+
+  commands:
+
+     (ubuntu|debian).restart_iptables.have_iptables_restore::
+
+       "$(cmd[iptables-restore]) < $(iptables_file)"
+         comment => "Restart iptables for a new policy";
+      
+    (ubuntu|debian).restart_iptables.have_systemctl::
+
+      "$(paths.systemctl) enable netfilter-persistent"
+        comment => "Enable netfilter-persistent on boot";
+
+      "$(paths.systemctl) restart netfilter-persistent"
+        comment => "Restart netfilter-persistent for a new policy";
+
+    (redhat|centos).restart_iptables.have_systemctl::
+
+      "$(paths.systemctl) enable iptables"
+        comment => "Enable iptables on boot";
+
+      "$(paths.systemctl) restart iptables"
+        comment => "Restart iptables for a new policy";
+
+    (redhat|centos).restart_iptables.!have_systemctl.have_init_d_iptables::
+
+      "$(paths.chkconfig) iptables on"
+        comment => "Enable iptables on boot";
+
+      "$(paths.service) iptables restart"
+        comment => "Restart iptables for a new policy";
+
+}
+
+##
+##
+##
+bundle edit_line jb_iptables_init_restore_iptables(params)
+{
+  vars:
+
+    "services" slist => getindices("params");
+
+# have to fetch list content form data variable
+    "dport_$(services)" slist => getvalues("params[$(services)][dport]");
+
+
+  insert_lines:
+    "$(params[created])
+
+# Turn on traffic filtering
+*filter
+
+# Set default policies
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+
+# Accept all traffic from the loopback interface.
+-A INPUT -i lo -j ACCEPT
+-A OUTPUT -o lo -j ACCEPT
+
+# block null packets
+-A INPUT -p tcp --tcp-flags ALL NONE -j DROP
+
+# reject a syn-flood attack
+-A INPUT -p tcp ! --syn -m state --state NEW -j DROP
+
+# reject XMAS packets
+-A INPUT -p tcp --tcp-flags ALL ALL -j DROP
+
+# Accept legitimate responses to traffic we generate.
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+
+# Allow incoming/outgoing TCP port 5308 (cfengine) traffic
+-A INPUT -p tcp -s $(sys.policy_hub)/24 --dport 5308 -m state --state NEW -j ACCEPT
+-A OUTPUT -p tcp -d $(sys.policy_hub)/24 --dport 5308 -m state --state NEW -j ACCEPT
+
+# Allow incoming/outgoing TCP port 22 (ssh) traffic
+-A INPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT
+-A OUTPUT -p tcp --dport 22 -m state --state NEW -j ACCEPT
+"
+      insert_type => "preserve_block";
+
+# service inserts
+    "# Allow incoming TCP port for $(services)
+-A INPUT -m state --state NEW -p tcp --dport $(dport_$(services)) -j ACCEPT
+" 
+      insert_type => "preserve_block";
+
+    "
+# Forward all legitimate responses to forwarded traffic.
+-A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+# reject icmp
+-A INPUT -j REJECT --reject-with icmp-host-prohibited 
+-A FORWARD -j REJECT --reject-with icmp-host-prohibited 
+
+# Make it all true.
+COMMIT"
+      insert_type => "preserve_block";
+
+}

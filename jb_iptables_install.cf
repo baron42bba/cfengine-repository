@@ -1,0 +1,52 @@
+#######################################################
+# IPtables
+#######################################################
+#
+# Install iptables
+#
+# Original author: Jurica Borozan
+# Version: 1.0.0
+#
+
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_iptables_install" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_iptables_install
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+ vars:
+
+  linux::
+
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+# install packages
+
+ packages:
+
+  linux::
+
+    "$(params[packages])"
+
+             comment => "Installing $(params[packages])",
+      package_policy => "add",
+      package_method => generic,
+             classes => if_repaired("$(params[packages])_installed");
+
+
+}
+

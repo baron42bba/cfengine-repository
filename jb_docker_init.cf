@@ -1,0 +1,308 @@
+#######################################################
+# Docker containers setup
+#######################################################
+#
+# Scenario:
+# Setup docker containers
+#
+# Created by: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_docker_init_def", "jb_docker_init" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle common jb_docker_init_def
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+      "cmd_dirs" slist => { "/usr/bin", "/bin" };
+      "cmds" slist => { "docker" };
+
+      "cmd[$(cmds)]" string => "$(cmd_dirs)/$(cmds)",
+        ifvarclass => fileexists("$(cmd_dirs)/$(cmds)");
+
+  classes:
+
+    linux::
+
+# check dockerd restart method
+      "have_systemctl"      expression => fileexists("$(paths.systemctl)");
+      "have_init_d_dockerd"  expression => fileexists("/etc/init.d/dockerd");
+
+# check docker
+      "have_docker" and => {
+                             isdir("/etc/docker"),
+                             fileexists("$(cmd[docker])"),
+                           };
+}
+
+##
+##
+##
+bundle agent jb_docker_init
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+# check running containers
+      "t_string[running]"  string => execresult("$(jb_docker_init_def.cmd[docker]) ps --all=true --format '{{.Names}} {{.ID}} {{.Status}}'", "useshell");
+
+      "dim_containers"        int => parsestringarray("name_id_container_array", "$(t_string[running])", "#", "\s", "100", "10000");
+      "existing_containers" slist => getindices("name_id_container_array");
+
+
+# container groups 
+      "t_list[groups]"         slist => getindices("params[groups]");
+
+      "t_existing_group_containers[$(t_list[groups])]" slist => grep("$(t_list[groups])-\d+", "existing_containers"),
+        ifvarclass => some("$(t_list[groups])-\d+", "existing_containers");
+
+      "ok[groups]"  slist => getindices("t_existing_group_containers");
+      "run[groups]" slist => difference("t_list[groups]", "ok[groups]");
+
+# create run option parameters of groups of containers but without name
+      "t_list[$(run[groups])]"   slist => maparray("--$(this.k)=$(this.v)", "params[$(run[groups])][run][options]");
+      "options[$(run[groups])]" string => join(" ", "t_list[$(run[groups])]");
+
+# create index for names for containers in run groups
+      "run_group_names[$(run[groups])]" slist => expandrange("$(run[groups])-[1-$(params[groups][$(run[groups])])]", "1");
+
+# create index for names for containers in ok groups
+      "ok_group_names[$(ok[groups])]" slist => expandrange("$(ok[groups])-[1-$(params[groups][$(ok[groups])])]", "1");
+
+# maybe there is a need to create single containers in group
+      "run_single[$(ok[groups])]" slist => difference("ok_group_names[$(ok[groups])]", "t_existing_group_containers[$(t_list[groups])]"); 
+
+# create run option parameters of single containers in groups excluding name
+      "t_list[$(ok[groups])]"   slist => maparray("--$(this.k)=$(this.v)", "params[$(ok[groups])][run][options]");
+      "options[$(ok[groups])]" string => join(" ", "t_list[$(ok[groups])]");
+
+# maybe there is a need to start single containers in group
+      "start_single[$(ok[groups])]" slist => intersection("ok_group_names[$(ok[groups])]", "t_existing_group_containers[$(t_list[groups])]"); 
+
+# remove ok group containers first, if any
+      "t_regexp"          string => concat("^(?!(", join("|", "ok[groups]"), ")).*$" ),
+        ifvarclass => some(".*", "ok[groups]");
+      "existing_containers" slist => grep("$(t_regexp)", "existing_containers"),
+        ifvarclass => some(".*", "ok[groups]");
+
+# calculated containers lists
+      "t_list[containers]" slist => getvalues("params[containers]");
+      "ok[containers]"     slist => intersection("t_list[containers]", "existing_containers"); 
+      "run[containers]"    slist => difference("t_list[containers]", "existing_containers"); 
+      "kill[containers]"   slist => difference("existing_containers", "t_list[containers]");
+
+# create run option parameters including name of container
+      "t_list[$(run[containers])]"   slist => maparray("--$(this.k)=$(this.v)", "params[$(run[containers])][run][options]");
+      "options[$(run[containers])]" string => concat( "--name $(run[containers]) ",
+                                                      join(" ", "t_list[$(run[containers])]") );
+
+# check pulled images
+      "t_string[images]" string => execresult("$(jb_docker_init_def.cmd[docker]) images | $(paths.awk) -F'(  +)' '!/REPOSITORY/ {print $1\":\"$2\" \"$3}'", "useshell");
+
+      "dim_images"          int => parsestringarray("name_id_images_array", "$(t_string[images])", "#", "\s", "100", "10000");
+      "pulled_images"     slist => getindices("name_id_images_array");
+
+# calculated images lists
+      "t_list[images]" slist => getvalues("params[images]");
+      "pull[images]"   slist => difference("t_list[images]", "pulled_images"); 
+      "rmi[images]"    slist => difference("pulled_images", "t_list[images]");
+
+# check network
+      "t_string[networks]" string => execresult("$(jb_docker_init_def.cmd[docker]) network ls | $(paths.awk) -F'(  +)' '!/NETWORK/ {print $2\" \"$1}'", "useshell");
+
+      "dim_networks"          int => parsestringarray("name_id_networks_array", "$(t_string[networks])", "#", "\s", "100", "10000");
+      "existing_networks"   slist => getindices("name_id_networks_array");
+
+# calculated network lists
+      "t_list[networks]" slist => getvalues("params[networks]");
+      "create[networks]" slist => difference("t_list[networks]", "existing_networks"); 
+      "rm[networks]"     slist => difference("existing_networks", "t_list[networks]");
+
+# create create option parameters for networks
+      "t_list[$(create[networks])]"   slist => maparray("--$(this.k)=$(this.v)", "params[$(create[networks])][create][options]");
+      "options[$(create[networks])]" string => join(" ", "t_list[$(create[networks])]");
+
+# check volumes
+      "t_string[volumes]" string => execresult("$(jb_docker_init_def.cmd[docker]) volume ls --filter 'dangling=true' | $(paths.awk) -F'(  +)' '!/DRIVER/ {print $2\" \"$1}'", "useshell");
+
+      "dim_volumes"          int => parsestringarray("name_id_volumes_array", "$(t_string[volumes])", "#", "\s", "100", "10000");
+      "existing_volumes"   slist => getindices("name_id_volumes_array");
+
+# calculated network lists
+      "t_list[volumes]" slist => getvalues("params[volumes]");
+      "create[volumes]" slist => difference("t_list[volumes]", "existing_volumes"); 
+      "rm[volumes]"     slist => difference("existing_volumes", "t_list[volumes]");
+      
+# create create option parameters for volumes
+      "t_list[$(create[volumes])]"   slist => maparray("--$(this.k)=$(this.v)", "params[$(create[volumes])][create][options]");
+      "options[$(create[volumes])]" string => join(" ", "t_list[$(create[volumes])]");
+
+
+  classes:
+
+    linux.have_systemctl::
+
+      "have_running_docker" expression => returnszero("$(paths.systemctl) --quiet is-active docker", "noshell");
+
+    linux.!have_systemctl.have_init_d_dockerd::
+
+      "have_running_docker" expression => returnszero("$(paths.service) docker status", "noshell");
+
+    linux::
+
+      "not_empty_run_containers"  expression => some(".*", "run[containers]");
+      "not_empty_kill_containers" expression => some(".*", "kill[containers]");
+
+      "not_empty_run_groups"      expression => some(".*", "run[groups]");
+      "not_empty_kill_groups"     expression => some(".*", "kill[groups]");
+
+      "not_empty_pull_images"     expression => some(".*", "pull[images]");
+      "not_empty_rmi_images"      expression => some(".*", "rmi[images]");
+
+      "not_empty_create_networks" expression => some(".*", "create[networks]");
+      "not_empty_rm_networks"     expression => some(".*", "rm[networks]");
+
+      "not_empty_create_volumes"  expression => some(".*", "create[volumes]");
+      "not_empty_rm_volumes"      expression => some(".*", "rm[volumes]");
+
+      "not_empty_run_single_$(ok[groups])" expression => some(".*", "run_single[$(ok[groups])]");
+
+      "should_start_$(ok[containers])" not => regcmp("^Up .*$", "$(name_id_container_array[$(ok[containers])][2])");
+      "should_start_$(start_single[$(ok[groups])])" not => regcmp("^Up .*$", "$(name_id_container_array[$(start_single[$(ok[groups])])][2])");
+
+
+  processes:
+
+    linux.have_docker::
+
+      ".*docker.*"
+        restart_class => "restart_dockerd";
+
+
+  commands:
+
+# (re)start docker
+    linux.restart_docker.have_systemctl::
+
+      "$(paths.systemctl) enable docker"
+        comment => "Enable dockerd on boot";
+
+      "$(paths.systemctl) restart docker"
+        comment => "Restart docker";
+
+    linux.restart_docker.!have_systemctl.have_init_d_dockerd::
+
+      "$(paths.chkconfig) docker on"
+        comment => "Enable docker on boot";
+
+      "$(paths.service) docker restart"
+        comment => "Restart docker";
+
+    linux.have_running_docker::
+
+# create networks
+      "$(jb_docker_init_def.cmd[docker]) network create $(options[$(create[networks])]) $(create[networks])"
+           comment => "Creating network $(create[networks])",
+        ifvarclass => canonify("not_empty_create_networks");
+
+# create volumes
+      "$(jb_docker_init_def.cmd[docker]) volume create $(options[$(create[volumes])]) --name=$(create[volumes])"
+           comment => "Creating volume $(create[volumes])",
+        ifvarclass => canonify("not_empty_create_volumes");
+
+# pull image from repository
+      "$(jb_docker_init_def.cmd[docker]) pull $(pull[images])"
+           comment => "Pulling image $(pull[images])",
+            action => bg("5","60"),
+#            action => jb_docker_init_background,
+        ifvarclass => canonify("not_empty_pull_images");
+
+# create single container(s)
+      "$(jb_docker_init_def.cmd[docker]) run $(options[$(run[containers])]) $(params[$(run[containers])][run][image]) $(params[$(run[containers])][run][command])"
+           comment => "Running container $(run[containers])",
+            action => bg("5","60"),
+#            action => jb_docker_init_background,
+        ifvarclass => canonify("not_empty_run_containers");
+
+# create group of containers
+      "$(jb_docker_init_def.cmd[docker]) run $(options[$(run[groups])]) --name=$(run_group_names[$(run[groups])]) $(params[$(run[groups])][run][image]) $(params[$(run[groups])][run][command])"
+           comment => "Running container $(run[groups])-$(group_index[$(run[groups])])",
+            action => bg("5","60"),
+#            action => jb_docker_init_background,
+        ifvarclass => canonify("not_empty_run_groups");
+
+# create singles from group of containers, if any
+      "$(jb_docker_init_def.cmd[docker]) run $(options[$(ok[groups])]) --name=$(run_single[$(ok[groups])]) $(params[$(ok[groups])][run][image]) $(params[$(ok[groups])][run][command])"
+           comment => "Running container $(run_single[$(ok[groups])])",
+            action => bg("5","60"),
+#            action => jb_docker_init_background,
+        ifvarclass => canonify("not_empty_run_single_$(ok[groups])");
+
+# start containers that are stopped or exited but still existing and ok
+      "$(jb_docker_init_def.cmd[docker]) start $(name_id_container_array[$(ok[containers])][1])"
+           comment => "Starting container $(ok[containers])",
+        ifvarclass => canonify("should_start_$(ok[containers])");
+
+# start containers from groups that are stopped or exited but still existing and ok
+      "$(jb_docker_init_def.cmd[docker]) start $(name_id_container_array[$(start_single[$(ok[groups])])][1])"
+           comment => "Starting container $(start_single[$(ok[groups])])",
+        ifvarclass => canonify("should_start_$(start_single[$(ok[groups])])");
+
+# killing single and grouped containers
+      "$(jb_docker_init_def.cmd[docker]) kill $(kill[containers])"
+           comment => "Killing container $(kill[containers])",
+        ifvarclass => canonify("not_empty_kill_containers");
+
+# removing single and grouped containers
+      "$(jb_docker_init_def.cmd[docker]) rm $(kill[containers])"
+           comment => "Removing container $(kill[containers])",
+        ifvarclass => canonify("not_empty_kill_containers");
+
+# removing image from local repositotry
+      "$(jb_docker_init_def.cmd[docker]) rmi --force=true $(name_id_images_array[$(rmi[images])][1])"
+           comment => "Removing image $(rmi[images])",
+        ifvarclass => canonify("not_empty_rmi_images");
+
+# removing volumes
+      "$(jb_docker_init_def.cmd[docker]) volume rm $(rm[volumes])"
+           comment => "Removing volume $(rm[volumes])",
+        ifvarclass => canonify("not_empty_rm_volumes");
+
+# removing networks
+      "$(jb_docker_init_def.cmd[docker]) network rm $(rm[networks])"
+           comment => "Removing network $(rm[networks])",
+        ifvarclass => canonify("not_empty_rm_networks");
+
+}
+
+##
+##
+##
+#bundle action jb_docker_init_background
+#{
+#  background => "true";
+#}

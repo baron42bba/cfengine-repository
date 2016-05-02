@@ -1,0 +1,13 @@
+{
+   "packages" : [ 
+                  "vim-minimal", 
+                  "vim-common", 
+                  "vim-enhanced" 
+                ],
+
+   "files" : {
+               "/usr/share/vim/vimfiles/ftplugin/cf3.vim" : "https://raw.github.com/neilhwatson/vim_cf3/master/ftplugin/cf3.vim",
+               "/usr/share/vim/vimfiles/doc/cf3.txt"      : "https://raw.github.com/neilhwatson/vim_cf3/master/doc/cf3.txt",
+               "/usr/share/vim/vimfiles/syntax/cf3.vim"   : "https://raw.github.com/neilhwatson/vim_cf3/master/syntax/cf3.vim"
+             }
+}

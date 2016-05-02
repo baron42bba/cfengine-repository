@@ -1,0 +1,87 @@
+{
+  "containers" : [
+                   "jbcontainer1",
+                   "jbcontainer2"
+                 ],
+
+  "groups" : {
+               "jbcontainer3" : "2"
+             },
+
+  "images" : [
+               "docker.io/centos:latest",
+               "docker.io/redis:latest",
+               "docker.io/mysql:latest"
+             ],
+
+  "networks" : [
+                  "none",
+                  "host",
+                  "bridge",
+                  "mynetwork"
+               ],
+
+  "volumes" : [
+                "myvolume"
+              ],
+
+  "jbcontainer1" : {
+                     "run" : {
+                               "options" : {
+                                             "volume"  : "/test:/tmp/docker/jbcontainer1",
+                                             "detach"  : "true",
+                                             "publish" : "80:8081"
+                                           },
+                               
+                               "image" : "docker.io/centos:latest",
+                               
+                               "command" : "sleep 120"
+                             }
+                   },
+
+  "jbcontainer2" : {
+                     "run" : {
+                               "options" : {
+                                             "volume"  : "/test:/tmp/docker/jbcontainer2",
+                                             "detach"  : "true",
+                                             "publish" : "80:8082"
+                                           },
+                     
+                               "image" : "docker.io/mysql:latest",
+                    
+                               "command" : "sleep 120"
+                                       }
+                             },
+
+  "jbcontainer3" : {
+                     "run" : {
+                               "options" : {
+                                             "volume" : "/test:/tmp/docker/jbcontainer3",
+                                             "detach" : "true",
+                                             "net"    : "mynetwork"
+                                           },
+                
+                               "image" : "docker.io/redis:latest",
+                
+                               "command" : "sleep 120"
+                             }
+                   },
+
+  "mynetwork" : {
+                  "create" : {
+                               "options" : {
+                                             "driver"  : "bridge",
+                                             "subnet"  : "172.18.99.0/16"
+                                             "gateway" : "172.18.99.1"
+                                           }
+                             }
+                },
+
+  "myvolume" : {
+                 "create" : {
+                              "options" : {
+                                            "driver" : "local"
+                                          }
+                            }
+               }
+}

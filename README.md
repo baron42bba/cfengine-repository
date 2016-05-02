@@ -17,9 +17,9 @@ Implementation of many recomendations from [STIGs](https://www.stigviewer.com/st
 
 Policy file to create users on client.
 
-### jb_vim.cf & jb_vim.json
+### jb_vim_for_cfengine.cf & redhat_jb_vim_for_cfengine.json/ubuntu_jb_vim_for_cfengine.json 
 
-Policy to install vim and CFEngine syntax extensions from Neil Watson.
+Policy to install vim and CFEngine syntax extensions from Neil Watson to redhat/centos and ubuntu linux machines.
 
 ### jb_yum_repos_epel.cf
 
@@ -45,3 +45,10 @@ Installs nginx repository for yum.
 
 Installs VMware repository for yum.
 
+### jb_iptables_*
+
+Exmaple of installing and maintaining IP tables (V4) on redhat/ubuntu nodes.
+
+### jb_docker_*
+
+Install docker and maintain containers/image/networks/volumes on linux node.

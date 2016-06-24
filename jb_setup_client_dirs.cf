@@ -1,0 +1,151 @@
+#######################################################
+# Prepare client subdirectories in repository
+#######################################################
+#
+# Scenario:
+# Prepare subdirectories for clients to copy them to 
+# autorun locations - clients copy cf files to be 
+# executed from subdirectories in repository with names
+# corresponding to their IP address/hostnames/tags 
+#
+# Original author: Jurica Borozan
+# Version: 1.1.0
+#
+
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_setup_client_dirs" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_setup_client_dirs
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux.am_policy_hub::
+
+#  set input files for all bundles
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+# rm command
+      "cmd_dirs" slist => { "/usr/bin", "/bin" };
+      "cmds" slist => { "rm" };
+
+      "cmd[$(cmds)]" string => "$(cmd_dirs)/$(cmds)",
+        ifvarclass => fileexists("$(cmd_dirs)/$(cmds)");
+
+# calculated parameters: directories
+      "subdirs" slist => getindices("params[tags]"); 
+
+      "string_existing_subdirs" string => execresult("$(paths.ls) -l $(params[repository_dir]) | $(paths.awk) '/^d/{ print $9 }'", "useshell");
+      "existing_subdirs"         slist => splitstring("$(string_existing_subdirs)", "[\n]", 100);
+
+      "subdirs_to_delete" slist => difference("existing_subdirs", "subdirs");
+
+
+  classes:
+
+    linux.am_policy_hub::
+
+# flag if directories exist
+      "no_$(subdirs)" not => isdir("$(params[repository_dir])/$(subdirs)");
+
+      "have_dirs_to_delete" expression => some(".*","subdirs_to_delete");
+
+
+  files:
+
+    linux.am_policy_hub::
+
+# create directories that do not exist
+
+     "$(params[repository_dir])/$(subdirs)/."
+         comment => "Create tag sub directory: $(subdirs)",
+          create => "true",
+      ifvarclass => canonify("no_$(subdirs)");
+
+
+  commands:
+
+    linux.am_policy_hub::
+
+# remove unwanted directories and their contents
+      "$(cmd[rm]) -fr $(params[repository_dir])/$(subdirs_to_delete)"
+           comment => "Delete tag sub directory $(subdirs_to_delete) if should not exist",
+        ifvarclass => "have_dirs_to_delete";
+
+
+  methods:
+
+    linux.am_policy_hub::
+
+# per each subdirectory
+      "run" usebundle => jb_set_up_dir_files("$(subdirs)", @(params));
+
+}
+
+##
+##
+##
+bundle agent jb_set_up_dir_files(subdir, params)
+{
+  vars:
+
+# all cf files, default and tag ones, must create intermediate lists and then join them
+     "default_files" slist => getvalues("params[default]");
+     "subdir_files"  slist => getvalues("params[tags][$(subdir)]");
+
+     "all_files"     slist => { @(default_files), @(subdir_files) };
+     "files"         slist => unique("all_files");
+
+  classes:
+
+    "is_params_file_$(files)" expression => fileexists("$(params[repository_dir])/$(subdir)_$(files)");
+
+  files:
+
+# first delete eventualy existing links or files
+    "$(params[repository_dir])/$(subdir)/.*\.(cf|json|yaml)"
+           comment => "Delete all other files or links in tag sub directory",
+            delete => tidy,
+       file_select => ex_list(@(files));
+
+# create hard link from this subdirectory to a file in repository directory
+
+# files that have same content for all
+    "$(params[repository_dir])/$(subdir)/$(files)"
+                comment => "Creating link to $(files)",
+      move_obstructions => "true",
+              link_from => jb_ln_h("$(params[repository_dir])/$(files)"),
+             ifvarclass => not( canonify("is_params_file_$(files)") );
+
+# or site specific content (prefixed for with site identification)
+    "$(params[repository_dir])/$(subdir)/$(files)"
+                comment => "Creating link to $(files)",
+      move_obstructions => "true",
+              link_from => jb_ln_h("$(params[repository_dir])/$(subdir)_$(files)"),
+             ifvarclass => canonify("is_params_file_$(files)");
+
+}
+
+##
+##
+##
+body link_from jb_ln_h(x)
+{
+  link_type => "hardlink";
+  source => "$(x)";
+}
+

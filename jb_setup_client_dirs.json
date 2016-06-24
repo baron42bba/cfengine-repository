@@ -1,0 +1,32 @@
+{
+  "repository_dir" : "/var/cfengine/repository",
+
+  "default" : [
+                "jb_iptables_install.cf",
+                "jb_iptables_install.json",
+                "jb_iptables_init.cf",
+                "jb_iptables_init.json",
+                "jb_STIGs.cf",
+                "jb_STIGs.json",
+                "jb_vim.cf",
+                "jb_vim.json"
+              ],
+
+  "tags" : {
+             "tag1" : [
+                        "jb_setup_client_dirs.cf",
+                        "jb_setup_client_dirs.json",
+                        "jb_yum_repos_glusterfs.cf",
+                        "jb_glusterfs_server_install.cf",
+                        "jb_yum_repos_mysql_community.cf",
+                        "jb_mysql_community_install.cf"
+                      ],
+       
+             "tag2" : [
+                        "jb_yum_repos_glusterfs.cf",
+                        "jb_glusterfs_server_install.cf",
+                        "jb_yum_repos_mysql_community.cf",
+                        "jb_mysql_community_install.cf"
+                      ]
+           }
+}

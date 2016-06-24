@@ -1,0 +1,322 @@
+#######################################################
+# Update  policies
+#######################################################
+#
+# Scenario:
+# All policies shall be updated corresponding
+# to ip/host address of client computer. Client CFEngine 
+# shall copy policy files from repository to 
+# services/autorun directory where they will be 
+# executed automatically.
+#
+# Original author: CFEngine
+# Adapted by: Jurica Borozan
+# Version: 1.3.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  bundlesequence => {
+#                      "jb_update_policy3",
+#                    };
+#}
+
+##
+##
+##
+bundle agent jb_update_policy3
+{
+  vars:
+
+    !windows::
+
+# check location for shell commands
+      "cmd_dirs" slist => { "/usr/bin", "/bin", "/usr/sbin", "/sbin" };
+      "cmds" slist => { "ls", "awk", "ip", "route" };
+
+      "cmd[$(cmds)]" string => "$(cmd_dirs)/$(cmds)",
+        ifvarclass => fileexists("$(cmd_dirs)/$(cmds)");
+
+    any::
+
+# stamp file name for validation
+      "promises_validated_file" string => "jb_promises_validated";
+
+# read tags from file, if they exists
+      "node_tags_file" string => "$(def.node_tags_file)",
+        ifvarclass => isvariable("def.node_tags_file");
+
+      "node_tags_file" string => "$(sys.workdir)/node.tags",
+        ifvarclass => not( isvariable("def.node_tags_file") );
+
+      "node_tags" slist => readstringlist("$(node_tags_file)", "#.*", "[;,\n\s]", 20, 1000),
+        ifvarclass => fileexists("$(node_tags_file)");
+
+# destination directory for copying
+      "inputs_dir" string => translatepath("$(sys.inputdir)/services/autorun");
+
+# source directory for copying
+      "source_dir" string => "$(def.jb_repository_dir)/cfengine",
+        ifvarclass => isvariable("def.jb_repository_dir");
+
+      "source_dir" string => "$(sys.workdir)/repository/cfengine",
+        ifvarclass => not( isvariable("def.jb_repository_dir") );
+
+    !windows.am_policy_hub::
+
+# source directory permissions, hub only
+      "source_dir_perms" string => "$(def.jb_repository_perms)",
+        ifvarclass => isvariable("def.jb_repository_perms");
+
+      "source_dir_perms" string => "0600",
+        ifvarclass => not( isvariable("def.jb_repository_perms") );
+
+    linux.!am_policy_hub::
+
+# client, determine network interface that comunicates with hub
+      "interface" string => execresult("$(cmd[ip]) route get $(sys.policy_hub) | $(cmd[awk]) '/dev/{print $3}'", "useshell"),
+        ifvarclass => and( isvariable("cmd[ip]"), isvariable("cmd[awk]") );
+
+    freebsd.!am_policy_hub::
+
+# client, determine network interface that comunicates with hub
+      "interface" string => execresult("$(cmd[route]) get $(sys.policy_hub) | $(cmd[awk]) '/interface/{print $2}'", "useshell"),
+        ifvarclass => and( isvariable("cmd[route]"), isvariable("cmd[awk]") );
+
+    !am_policy_hub::
+
+# client, create master subdirs list using hostname
+      "source_subdirs" slist => { 
+                                  "$(sys.uqhost)",
+                                };
+
+
+# client, add own IP if interface set
+      "source_subdirs" slist => { @(source_subdirs), "$(sys.ipv4[$(interface)])" },
+        ifvarclass => isvariable("interface");
+
+    !windows.am_policy_hub::
+
+# find existing directories and enlist them
+      "t_string_hub_subdirs" string => execresult("$(cmd[ls]) -l $(source_dir) | $(cmd[awk]) '/^d/{ print $9 }'", "useshell"),
+        ifvarclass => and( isvariable("cmd[ls]"), isvariable("cmd[awk]") );
+
+      "existing_hub_subdirs" slist => splitstring("$(t_string_hub_subdirs)", "[\n]", 100);
+
+# hub, create master subdirs list using hostanme and IP
+      "source_subdirs" slist => { 
+                                  "$(sys.policy_hub)",
+                                  "$(sys.uqhost)",
+                                };
+
+    any::
+
+# append tags, if they exist
+      "source_subdirs" slist => { @(source_subdirs), @(node_tags) },
+        ifvarclass => isvariable("node_tags");
+
+
+  classes:
+
+    am_policy_hub::
+
+# indicate timestamp exitence
+      "should_have_timestamp_file_$(existing_hub_subdirs)" not => fileexists("$(source_dir)/$(existing_hub_subdirs)/$(promises_validated_file)");
+
+
+  files:
+
+    am_policy_hub::
+
+# check permissions
+      "$(source_dir)/."
+             comment => "Make sure repository folder has right file permissions",
+               perms => jb_update_policy3_m($(source_dir_perms)),
+        depth_search => jb_update_policy3_recurse_basedir("inf"),
+              action => jb_update_policy3_immediate;
+
+# check and indicate change inside directory
+      "$(source_dir)/$(existing_hub_subdirs)"
+             comment => "Detect a new policy update(s) in master directories",
+             changes => jb_update_policy3_detect_all_change,
+         file_select => jb_update_policy3_input_files,
+        depth_search => jb_update_policy3_recurse_basedir("1"),
+             classes => jb_update_policy3_if_repaired("$(promises_validated_file)_$(existing_hub_subdirs)");
+
+# (re)create timestamp if any changes or timestamp file missing
+      "$(source_dir)/$(existing_hub_subdirs)/$(promises_validated_file)"
+              comment => "Creates a validation stamp in master directory for a new policy update(s) to help to reduce the distributed load",
+               create => "true",
+        edit_defaults => jb_update_policy3_empty,
+            edit_line => jb_update_policy3_insert_time_stamp,
+           ifvarclass => or( canonify("$(promises_validated_file)_$(existing_hub_subdirs)"),
+                             canonify("should_have_timestamp_file_$(existing_hub_subdirs)") );
+
+    any::
+
+# copy timestamp file and indicate if copied
+      "$(inputs_dir)/$(promises_validated_file).$(source_subdirs)"
+          comment => "Check whether the validation stamp has changed for a new policy update(s) to help to reduce the distributed load",
+        copy_from => jb_update_policy3_rcp("$(source_dir)/$(source_subdirs)/$(promises_validated_file)","$(sys.policy_hub)"),
+          classes => jb_update_policy3_if_repaired("validated_updates_for_autorun_ready");
+
+    validated_updates_for_autorun_ready.!new_files_copied::
+
+# delete old files before copying new ones if updates are ready
+      "$(inputs_dir)/.*"
+             comment => "Delete existing policy files (*.cf, *.json, *.yaml) in local directory if new ones are to be copied",
+        file_select  => jb_update_policy3_input_files,
+              delete => jb_update_policy3_tidy;
+
+    validated_updates_for_autorun_ready::
+
+# copy new files and indicate copied
+      "$(inputs_dir)"
+             comment => "Copy policy updates from master directory on policy server if needed",
+           copy_from => jb_update_policy3_rcp("$(source_dir)/$(source_subdirs)","$(sys.policy_hub)"),
+        depth_search => jb_update_policy3_recurse("inf"),
+         file_select => jb_update_policy3_input_files,
+             classes => jb_update_policy3_if_repaired("new_files_copied");
+
+#  reports:
+#
+#    am_policy_hub::
+#
+#      "verbose: found repository dirs: $(existing_hub_subdirs)";
+
+}
+
+##
+## Inserts timestamp into file
+##
+bundle edit_line jb_update_policy3_insert_time_stamp
+{
+  insert_lines:
+
+    "{ \"timestamp\": $(sys.systime) }";
+}
+
+
+##################################################################
+# Self-contained bodies from the lib to avoid library dependencies
+##################################################################
+
+body perms jb_update_policy3_m(p)
+{
+  mode  => "$(p)";
+}
+
+#########################################################
+
+body perms jb_update_policy3_mo(p,o)
+{
+  mode   => "$(p)";
+  owners => {"$(o)"};
+}
+
+#########################################################
+
+body file_select jb_update_policy3_input_files
+{
+  leaf_name => { ".*\.cf", ".*\.json", ".*\.yaml" };
+  file_result => "leaf_name";
+}
+
+#########################################################
+
+body file_select jb_update_policy3_input_direcories(d)
+{
+  leaf_name => { "$(d)/.*" };
+  file_types  => { "dir" };
+  file_result => "leaf_name";
+}
+
+#########################################################
+
+body copy_from jb_update_policy3_rcp(from,server)
+{
+  source      => "$(from)";
+  compare     => "digest";
+  trustkey    => "false";
+
+  !am_policy_hub::
+
+    servers => { "$(server)" };
+
+  cfengine_internal_encrypt_transfers::
+
+    encrypt => "true";
+
+  cfengine_internal_purge_policies::
+
+    purge => "true";
+}
+
+#########################################################
+
+body action jb_update_policy3_immediate
+{
+  ifelapsed => "0";
+}
+
+#########################################################
+
+body depth_search jb_update_policy3_recurse(d)
+{
+  depth => "$(d)";
+  exclude_dirs => { "\.svn", "\.git", "git-core" };
+} 
+
+#########################################################
+
+body depth_search jb_update_policy3_recurse_basedir(d)
+{ 
+  include_basedir => "true";
+  depth => "$(d)";
+  exclude_dirs => { "\.svn", "\.git", "git-core" };
+}
+
+#########################################################
+
+body classes jb_update_policy3_if_repaired(x)
+{
+  promise_repaired => { "$(x)" };
+}
+
+#########################################################
+
+body delete jb_update_policy3_tidy
+{
+  dirlinks => "delete";
+  rmdirs   => "true";
+}
+
+#########################################################
+
+body edit_defaults jb_update_policy3_empty
+{
+  empty_file_before_editing => "true";
+  edit_backup => "false";
+#  max_file_size => "300000";
+}
+
+#########################################################
+
+body changes jb_update_policy3_detect_all_change
+{
+  hash           => "best";
+  report_changes => "all";
+  update_hashes  => "yes";
+}
+
+#########################################################
+
+body changes jb_update_policy3_detect_content_change
+{
+  hash           => "md5";
+  report_changes => "content";
+  update_hashes  => "yes";
+}

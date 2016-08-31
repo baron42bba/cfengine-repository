@@ -1,0 +1,82 @@
+#######################################################
+# Mediawiki module install
+#######################################################
+#
+# Scenario:
+# Install wikimedia module for apache
+#
+# Original author: Jurica Borozan
+# Version: 1.0.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_mediawiki_install" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_mediawiki_install
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+# data file
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+# check apachectl
+      "cmd_dirs" slist => { "/usr/sbin", "/sbin" };
+      "cmds" slist => { "apachectl" };
+
+      "cmd[$(cmds)]" string => "$(cmd_dirs)/$(cmds)",
+        ifvarclass => fileexists("$(cmd_dirs)/$(cmds)");
+
+
+  classes:
+
+      "have_mediawiki_installed" expression => isdir("$(params[mediawiki_dir])");
+
+      "have_packages" expression => isvariable("params[packages]");
+      "have_commands" expression => isvariable("params[commands]");
+
+
+  packages:
+
+# install packages
+
+    linux.have_packages::
+
+      "$(params[packages])"
+
+               comment => "Install mediawiki module for Apache server",
+        package_policy => "add",
+        package_method => generic,
+               classes => if_repaired("mediawiki_installed");
+
+
+  commands:
+
+    linux.have_commands::
+
+      "$(params[commands])"
+        comment => "Installing from commands",
+        classes => if_repaired("mediawiki_installed");
+
+    linux.mediawiki_installed::
+
+      "$(cmd[apachectl]) restart"
+           comment => "Restart apache daemon";
+
+}
+

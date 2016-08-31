@@ -1,0 +1,17 @@
+{
+  "mediawiki_dir" : "/var/www/mediawiki123",
+
+  "packages" : [
+                 "httpd",
+                 "php",
+                 "php-mysql",
+                 "php-gd",
+                 "php-xml"
+               ],
+
+  "commands" : [
+                 "/bin/wget http://releases.wikimedia.org/mediawiki/1.23/mediawiki-1.23.0.tar.gz",
+                 "/bin/tar -zxf /tmp/mediawiki-1.23.0.tar.gz",
+                 "/bin/mv /tmp/mediawiki-1.23.0 /var/www/mediawiki123"
+               ]
+}

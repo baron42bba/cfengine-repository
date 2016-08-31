@@ -1,0 +1,178 @@
+#######################################################
+# Mediawiki module init
+#######################################################
+#
+# Scenario:
+# Setup wikimedia module for apache
+#
+# Original author: Jurica Borozan
+# Version: 1.1.0
+#
+
+##
+## When testing uncoment
+##
+#body common control
+#{
+#  any::
+#    bundlesequence => { "jb_mediawiki_init" };
+#    inputs => { "$(sys.libdir)/stdlib.cf" };
+#}
+
+##
+##
+##
+bundle agent jb_mediawiki_init
+{
+  meta:
+    "tags" slist => { "autorun" };
+
+  vars:
+
+    linux::
+
+# data file
+      "params_files" slist => findfiles("$(this.promise_dirname)/$(this.bundle).json", "$(this.promise_dirname)/$(this.bundle).yaml");
+      "params"        data => readdata(nth("params_files", 0), "auto");
+
+# check apachectl
+      "cmd_dirs" slist => { "/usr/sbin", "/sbin" };
+      "cmds" slist => { "apachectl" };
+
+      "cmd[$(cmds)]" string => "$(cmd_dirs)/$(cmds)",
+        ifvarclass => fileexists("$(cmd_dirs)/$(cmds)");
+
+
+  classes:
+
+# check existence of wikimedia
+
+      "have_mediawiki_installed" expression => isdir("$(params[mediawiki_dir])");
+
+      "have_localsettings_php"                expression => isvariable("params[LocalSettings_php]");
+      "have_to_copy_localsettings_php_file"   expression => isvariable("params[LocalSettings_php_file]");
+
+      "have_apache_user"  expression => groupexists("$(params[apache_user])");
+      "have_apache_group" expression => groupexists("$(params[apache_group])");
+
+
+  files:
+
+    linux.have_mediawiki_installed::
+
+# setup conf file
+      "$(params[mediawiki_conf_file])"
+              comment => "(Re)create mediawiki configuration file",
+               create => "true",
+        edit_defaults => empty,
+            edit_line => jb_mediawiki_init_restore_mediawiki_conf( @(params) ),
+              classes => if_repaired("restart_apache");
+
+# setup LocalSettings.php file
+      "$(params[mediawiki_dir])/LocalSettings.php"
+              comment => "(Re)create mediawiki LocalSettings.php file",
+               create => "true",
+        edit_defaults => empty,
+                perms => m("644"),
+            edit_line => jb_mediawiki_init_restore_localsettings_php( @(params) ),
+              classes => if_repaired("restart_apache"),
+           ifvarclass => "have_localsettings_php";
+
+# copy LocalSettings.php file
+      "$(params[mediawiki_dir])/LocalSettings.php"
+              comment => "Copy mediawiki LocalSettings.php file",
+            copy_from => remote_cp("$(params[LocalSettings_php_file])","$(sys.policy_hub)"),
+                perms => m("644"),
+              classes => if_repaired("restart_apache"),
+           ifvarclass => and( "have_to_copy_localsettings_php_file",
+                              not("have_localsettings_php") );
+
+# change ownerships
+      "$(params[mediawiki_dir])/LocalSettings.php"
+            comment => "Change ownership for image directory to enable file upload",
+              perms => mog("655", "$(params[apache_user])","$(params[apache_group])"),
+         ifvarclass => and( "have_apache_user", 
+                            "have_apache_group" );
+
+# for file upload
+      "$(params[mediawiki_dir])/image"
+              comment => "Change ownership for image directory to enable file upload",
+         depth_search => recurse("inf"),
+                perms => mog("755", "$(params[apache_user])","$(params[apache_group])"),
+           ifvarclass => and( "have_apache_user", 
+                              "have_apache_group" );
+      
+
+  commands:
+
+    linux.restart_apache::
+
+      "$(cmd[apachectl]) restart"
+           comment => "Restart apache daemon";
+
+}
+
+##
+## 
+##
+bundle edit_line jb_mediawiki_init_restore_mediawiki_conf(params)
+{
+  insert_lines:
+
+    "$(params[created])
+
+Alias $(params[url_dir])/mw-config            $(params[mediawiki_dir])/mw-config
+
+Alias $(params[url_dir])/index.php            $(params[mediawiki_dir])/index.php
+Alias $(params[url_dir])/api.php              $(params[mediawiki_dir])/api.php
+Alias $(params[url_dir])/load.php             $(params[mediawiki_dir])/load.php
+Alias $(params[url_dir])/opensearch_desc.php  $(params[mediawiki_dir])/opensearch_desc.php
+Alias $(params[url_dir])/skins                $(params[mediawiki_dir])/skins
+Alias $(params[url_dir])/images               $(params[mediawiki_dir])/images
+Alias $(params[url_dir])                      $(params[mediawiki_dir])/index.php
+
+<Directory $(params[mediawiki_dir])>
+  Options FollowSymLinks
+</Directory>
+
+<Directory $(params[mediawiki_dir])/images>
+  Options -Indexes
+</Directory>
+"
+      insert_type => "preserve_block";
+
+}
+
+##
+##
+##
+bundle edit_line jb_mediawiki_init_restore_localsettings_php(params)
+{
+  vars:
+
+    "inds" slist => getindices("params[LocalSettings_php]");
+
+
+  insert_lines:
+
+    "<?php
+
+$(params[created])
+
+# See includes/DefaultSettings.php for all configurable settings
+# and their default values, but don't forget to make changes in _this_
+# file, not there.
+#
+# Further documentation for configuration settings may be found at:
+# http://www.mediawiki.org/wiki/Manual:Configuration_settings
+
+# Protect against web entry
+if ( !defined( 'MEDIAWIKI' ) ) {
+        exit;
+}
+   "
+      insert_type => "preserve_block";
+
+   "$(inds) = $(params[LocalSettings_php][$(inds)]);"
+      insert_type => "preserve_block";
+}

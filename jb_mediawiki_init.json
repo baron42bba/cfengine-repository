@@ -1,0 +1,54 @@
+{
+  "mediawiki_conf_file" : "/etc/httpd/conf.d/mediawiki123.conf",
+
+  "mediawiki_dir" : "/var/www/mediawiki123",
+
+  "url_dir" : "/wiki",
+
+  "apache_user"  : "apache",
+  "apache_group" : "apache",
+
+  "LocalSettings_php" : {
+                          "$wgSitename" : "'JB Test Wiki'",
+                          "$wgMetaNamespace" : "'JB_Test_Wiki'",
+                          "$wgScriptPath" : "'/wiki'",
+                          "$wgScriptExtension" : "'.php'",
+                          "$wgServer" : "'http://172.16.98.149'",
+                          "$wgStylePath" : "'$wgScriptPath/skins'",
+                          "$wgLogo" : "'$wgStylePath/common/images/wiki.png'",
+                          "$wgEnableEmail" : "true",
+                          "$wgEnableUserEmail" : "true",
+                          "$wgEmergencyContact" : "'apache@172.16.98.149'",
+                          "$wgPasswordSender" : "'apache@172.16.98.149'",
+                          "$wgEnotifUserTalk" : "false",
+                          "$wgEnotifWatchlist" : "false",
+                          "$wgEmailAuthentication" : "true",
+                          "$wgDBtype" : "'mysql'",
+                          "$wgDBserver" : "'localhost'",
+                          "$wgDBname" : "'my_wiki'",
+                          "$wgDBuser" : "'root'",
+                          "$wgDBpassword" : "'jbmypass1!'",
+                          "$wgDBprefix" : "''",
+                          "$wgDBTableOptions" : "'ENGINE=InnoDB, DEFAULT CHARSET=utf8'",
+                          "$wgDBmysql5" : "false",
+                          "$wgMainCacheType" : "CACHE_NONE",
+                          "$wgMemCachedServers" : "array()",
+                          "$wgEnableUploads" : "false",
+                          "$wgUseInstantCommons" : "false",
+                          "$wgShellLocale" : "'en_US.utf8'",
+                          "$wgLanguageCode" : "'en'",
+                          "$wgSecretKey" : "'7f8dafd685aea28af2ccc6ba8503e1c63e91c9640ca8222dc37b9f8d96af34cf'",
+                          "$wgUpgradeKey" : "'e516369d23ed7ab4'",
+                          "$wgDefaultSkin" : "'vector'",
+                          "$wgRightsPage" : "''",
+                          "$wgRightsUrl" : "''",
+                          "$wgRightsText" : "''",
+                          "$wgRightsIcon" : "''",
+                          "$wgDiff3" : "'/usr/bin/diff3'",
+                          "$wgShowExceptionDetails" : "true"
+                        },
+
+  "LocalSettings_php_file" : "/var/cfengine/repository/php/LocalSettings.php",
+
+  "created" : "### CFEngine/jb_mediawiki_init created ###"
+}

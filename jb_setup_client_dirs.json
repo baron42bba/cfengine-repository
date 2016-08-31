@@ -1,16 +1,15 @@
 {
-  "repository_dir" : "/var/cfengine/repository",
+  "repository_dir" : "/var/cfengine/repository/cfengine",
 
-  "default" : [
-                "jb_iptables_install.cf",
-                "jb_iptables_install.json",
-                "jb_iptables_init.cf",
-                "jb_iptables_init.json",
-                "jb_STIGs.cf",
-                "jb_STIGs.json",
-                "jb_vim.cf",
-                "jb_vim.json"
-              ],
+  "policies_dirs" : [
+                    "/var/cfengine/repository/policies/cfengine",
+                    "/var/cfengine/repository/policies/security",
+                    "/var/cfengine/repository/policies/utilities",
+                    "/var/cfengine/repository/policies/databases",
+                    "/var/cfengine/repository/policies/web",
+                    "/var/cfengine/repository/policies/cloud",
+                    "/var/cfengine/repository/policies/system"
+                  ],
 
   "tags" : {
              "tag1" : [

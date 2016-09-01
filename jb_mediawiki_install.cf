@@ -45,7 +45,7 @@ bundle agent jb_mediawiki_install
 
   classes:
 
-      "have_mediawiki_installed" expression => isdir("$(params[mediawiki_dir])");
+      "no_mediawiki_installed" not => isdir("$(params[mediawiki_dir])");
 
       "have_packages" expression => isvariable("params[packages]");
       "have_commands" expression => isvariable("params[commands]");
@@ -55,7 +55,7 @@ bundle agent jb_mediawiki_install
 
 # install packages
 
-    linux.have_packages::
+    linux.have_packages.no_mediawiki_installed::
 
       "$(params[packages])"
 
@@ -67,7 +67,7 @@ bundle agent jb_mediawiki_install
 
   commands:
 
-    linux.have_commands::
+    linux.have_commands.no_mediawiki_installed::
 
       "$(params[commands])"
         comment => "Installing from commands",
